@@ -77,129 +77,8 @@ export class GLBLoader {
         model.scale.setScalar(scale)
     }
 
-    /**
-     * Apply basic materials to all children of the loaded model
-     * @param model - The loaded model to apply basic materials to
-     * @param options - Options for basic material properties
-     */
-    static applyBasicMaterials(
-        model: THREE.Group, 
-        options: {
-            color?: number
-        } = {}
-    ): void {
-        const {
-            color = 0x888888
-        } = options
 
-        model.traverse((child: THREE.Object3D) => {
-            if (child instanceof THREE.Mesh) {
-                // Create new basic material
-                const basicMaterial = new THREE.MeshBasicMaterial({
-                    color: color
-                })
-
-                // If the original material has a map (texture), preserve it
-                if (child.material instanceof THREE.Material) {
-                    const originalMaterial = child.material as any
-                    if (originalMaterial.map) {
-                        basicMaterial.map = originalMaterial.map
-                    }
-                }
-
-                // Apply the new material
-                child.material = basicMaterial
-                child.material.needsUpdate = true
-            }
-        })
-    }
-
-    /**
-     * Apply metallic materials to all children of the loaded model
-     * @param model - The loaded model to apply metallic materials to
-     * @param options - Options for metallic material properties
-     */
-    static applyMetallicMaterials(
-        model: THREE.Group, 
-        options: {
-            color?: number,
-            metalness?: number,
-            roughness?: number
-        } = {}
-    ): void {
-        const {
-            color = 0x888888,
-            metalness = 0.8,
-            roughness = 0.2
-        } = options
-
-        model.traverse((child: THREE.Object3D) => {
-            if (child instanceof THREE.Mesh) {
-                // Create new metallic material
-                const metallicMaterial = new THREE.MeshStandardMaterial({
-                    color: color,
-                    metalness: metalness,
-                    roughness: roughness,
-                    envMapIntensity: 1.5
-                })
-
-                // If the original material has a map (texture), preserve it
-                if (child.material instanceof THREE.Material) {
-                    const originalMaterial = child.material as any
-                    if (originalMaterial.map) {
-                        metallicMaterial.map = originalMaterial.map
-                    }
-                    if (originalMaterial.normalMap) {
-                        metallicMaterial.normalMap = originalMaterial.normalMap
-                    }
-                }
-
-                // Apply the new material
-                child.material = metallicMaterial
-                child.material.needsUpdate = true
-            }
-        })
-    }
-
-    /**
-     * Apply different basic materials to different children
-     * @param model - The loaded model
-     * @param materials - Array of material options for different children
-     */
-    static applyVariedBasicMaterials(
-        model: THREE.Group,
-        materials: Array<{
-            color?: number
-        }>
-    ): void {
-        let meshIndex = 0
-        
-        model.traverse((child: THREE.Object3D) => {
-            if (child instanceof THREE.Mesh && meshIndex < materials.length) {
-                const options = materials[meshIndex]
-                const {
-                    color = 0xffffff
-                } = options
-
-                const basicMaterial = new THREE.MeshBasicMaterial({
-                    color: color
-                })
-
-                // Preserve textures if they exist
-                if (child.material instanceof THREE.Material) {
-                    const originalMaterial = child.material as any
-                    if (originalMaterial.map) {
-                        basicMaterial.map = originalMaterial.map
-                    }
-                }
-
-                child.material = basicMaterial
-                child.material.needsUpdate = true
-                meshIndex++
-            }
-        })
-    }
-
+    
     /**
      * Apply varied metallic materials for reflective helmet appearance
      * @param model - The loaded model
@@ -220,7 +99,7 @@ export class GLBLoader {
                 const options = materials[meshIndex]
                 const {
                     color = 0x888888,
-                    metalness = 0.8,
+                    metalness = 0,
                     roughness = 0
                 } = options
 
@@ -228,7 +107,7 @@ export class GLBLoader {
                     color: color,
                     metalness: metalness,
                     roughness: roughness,
-                    envMapIntensity: 1.0 // Strong but realistic reflections
+                    envMapIntensity: 1.0
                 })
 
                 // Preserve textures if they exist

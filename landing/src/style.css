@@ -243,6 +243,56 @@ body {
   min-width: 30px;
 }
 
+.toggle-button {
+  padding: 0.5rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.toggle-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(26, 26, 26, 0.2);
+}
+
+.toggle-button:not(.active) {
+  background: var(--text-light);
+  color: white;
+}
+
+.toggle-button:not(.active):hover {
+  background: var(--secondary-color);
+}
+
+.toggle-button.theme-dark {
+  background: #2a2a2a;
+  color: white;
+}
+
+.toggle-button.theme-light {
+  background: #e0e0e0;
+  color: var(--primary-color);
+}
+
+.toggle-button.theme-dark:hover {
+  background: #1f1f1f;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(42, 42, 42, 0.3);
+}
+
+.toggle-button.theme-light:hover {
+  background: #d0d0d0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(224, 224, 224, 0.3);
+}
+
 .loading-indicator {
   position: fixed;
   top: 50%;

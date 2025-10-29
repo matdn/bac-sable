@@ -23,7 +23,7 @@ function createUI() {
     
     uiOverlay.innerHTML = `
         <header class="header">
-            <div class="logo">VERTEX</div>
+            <div class="logo">HELMET</div>
            
         </header>
         
@@ -39,6 +39,12 @@ function createUI() {
         
         <div class="dither-controls">
             <h3>Dithering</h3>
+            <div class="control-group">
+                <button id="dither-toggle" class="toggle-button active">Désactiver Dithering</button>
+            </div>
+            <div class="control-group">
+                <button id="material-theme-toggle" class="toggle-button theme-dark">Mode Clair</button>
+            </div>
             <div class="control-group">
                 <label for="dither-size">Taille des points:</label>
                 <input type="range" id="dither-size" min="0.1" max="10" step="0.1" value="1">
@@ -63,12 +69,58 @@ const ui = createUI()
 // Setup dither controls after UI creation
 const ditherSlider = document.getElementById('dither-size') as HTMLInputElement
 const ditherValue = document.getElementById('dither-value') as HTMLSpanElement
+const ditherToggle = document.getElementById('dither-toggle') as HTMLButtonElement
+const materialThemeToggle = document.getElementById('material-theme-toggle') as HTMLButtonElement
+
+// Track dither state
+let isDitheringEnabled = true
+// Track material theme state (true = dark, false = light)
+let isDarkTheme = true
 
 if (ditherSlider && ditherValue) {
     ditherSlider.addEventListener('input', (e) => {
         const value = parseFloat((e.target as HTMLInputElement).value)
         ditherValue.textContent = value.toFixed(1)
         setDitherPointSize(value)
+    })
+}
+
+// Setup dither toggle button
+if (ditherToggle) {
+    ditherToggle.addEventListener('click', () => {
+        isDitheringEnabled = !isDitheringEnabled
+        toggleDithering(isDitheringEnabled)
+        
+        // Update button appearance and text
+        if (isDitheringEnabled) {
+            ditherToggle.textContent = 'Désactiver Dithering'
+            ditherToggle.classList.add('active')
+        } else {
+            ditherToggle.textContent = 'Activer Dithering'
+            ditherToggle.classList.remove('active')
+        }
+    })
+}
+
+// Setup material theme toggle button
+if (materialThemeToggle) {
+    materialThemeToggle.addEventListener('click', () => {
+        isDarkTheme = !isDarkTheme
+        console.log(`Button clicked! isDarkTheme is now: ${isDarkTheme}`)
+        toggleMaterialTheme(isDarkTheme) // Pass the current state explicitly
+        
+        // Update button appearance and text
+        if (isDarkTheme) {
+            materialThemeToggle.textContent = 'Mode Clair'
+            materialThemeToggle.classList.remove('theme-light')
+            materialThemeToggle.classList.add('theme-dark')
+            console.log('Button updated to show "Mode Clair" (currently dark theme)')
+        } else {
+            materialThemeToggle.textContent = 'Mode Sombre'
+            materialThemeToggle.classList.remove('theme-dark')
+            materialThemeToggle.classList.add('theme-light')
+            console.log('Button updated to show "Mode Sombre" (currently light theme)')
+        }
     })
 }
 
@@ -115,8 +167,43 @@ function createWireframeSphere() {
 
 const sphere = createWireframeSphere()
 
-// HDR Environment Map setup
 let hdrEnvironment: THREE.Texture | null = null
+
+// Create a colorful synthetic environment for reflections
+function createColorfulSyntheticEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
+    const envScene = new THREE.Scene()
+    
+    // Create a colorful gradient background
+    const geometry = new THREE.SphereGeometry(50, 32, 16)
+    const vertexColors = []
+    const positions = geometry.attributes.position.array
+    
+    for (let i = 0; i < positions.length; i += 3) {
+        const x = positions[i]
+        const y = positions[i + 1]
+        const z = positions[i + 2]
+        
+        // Create colorful gradients based on position
+        const r = (Math.sin(x * 0.05) + 1) * 0.5
+        const g = (Math.sin(y * 0.05 + Math.PI * 0.33) + 1) * 0.5
+        const b = (Math.sin(z * 0.05 + Math.PI * 0.66) + 1) * 0.5
+        
+        vertexColors.push(r, g, b)
+    }
+    
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(vertexColors, 3))
+    
+    const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })
+    const sphere = new THREE.Mesh(geometry, material)
+    envScene.add(sphere)
+    
+    // Generate environment map
+    const pmremGenerator = new THREE.PMREMGenerator(renderer)
+    const renderTarget = pmremGenerator.fromScene(envScene, 0.04)
+    pmremGenerator.dispose()
+    
+    return renderTarget.texture
+}
 
 async function loadHDREnvironment(url: string, renderer: THREE.WebGLRenderer) {
     try {
@@ -147,81 +234,20 @@ async function loadHDREnvironment(url: string, renderer: THREE.WebGLRenderer) {
                 },
                 (error: unknown) => {
                     console.log('HDR file not found, creating high-contrast synthetic environment')
-                    // Create a high-contrast environment that will show up well in reflections
-                    // createHighContrastEnvironment(renderer)
-                    reject(error)
+                    // Create a colorful synthetic environment when HDR fails
+                    const syntheticEnv = createColorfulSyntheticEnvironment(renderer)
+                    hdrEnvironment = syntheticEnv
+                    scene.environment = hdrEnvironment
+                    console.log('Synthetic colorful environment created')
+                    resolve(hdrEnvironment)
                 }
             )
         })
     } catch (error) {
         console.error('Failed to load HDR environment map:', error)
-        // createHighContrastEnvironment(renderer)
         throw error
     }
 }
-
-// function createHighContrastEnvironment(renderer: THREE.WebGLRenderer) {
-//     const canvas = document.createElement('canvas')
-//     canvas.width = 2048
-//     canvas.height = 1024
-//     const ctx = canvas.getContext('2d')!
-    
-//     // Create a dramatic sky-like environment with strong contrasts
-//     // Sky gradient
-//     const skyGradient = ctx.createLinearGradient(0, 0, 0, 1024)
-//     skyGradient.addColorStop(0, '#87CEEB')    // Sky blue top
-//     skyGradient.addColorStop(0.4, '#E0F6FF')  // Light blue
-//     skyGradient.addColorStop(0.6, '#FFF8DC')  // Cornsilk
-//     skyGradient.addColorStop(1, '#2F4F4F')    // Dark slate gray bottom
-    
-//     ctx.fillStyle = skyGradient
-//     ctx.fillRect(0, 0, 2048, 1024)
-    
-//     // Add bright sun/light source
-//     const sunGradient = ctx.createRadialGradient(512, 200, 0, 512, 200, 150)
-//     sunGradient.addColorStop(0, '#FFFFFF')    // Bright white center
-//     sunGradient.addColorStop(0.3, '#FFFACD')  // Light yellow
-//     sunGradient.addColorStop(1, 'transparent') // Fade out
-    
-//     ctx.fillStyle = sunGradient
-//     ctx.fillRect(0, 0, 2048, 1024)
-    
-//     // Add additional light sources for variety
-//     ctx.fillStyle = '#FFFFFF'
-//     ctx.globalAlpha = 0.8
-    
-//     // Light source 1
-//     ctx.beginPath()
-//     ctx.arc(1600, 300, 80, 0, Math.PI * 2)
-//     ctx.fill()
-    
-//     // Light source 2
-//     ctx.beginPath()
-//     ctx.arc(300, 150, 60, 0, Math.PI * 2)
-//     ctx.fill()
-    
-//     // Light source 3
-//     ctx.beginPath()
-//     ctx.arc(1200, 800, 40, 0, Math.PI * 2)
-//     ctx.fill()
-    
-//     ctx.globalAlpha = 1.0
-    
-//     // Create texture from canvas
-//     const texture = new THREE.CanvasTexture(canvas)
-//     texture.mapping = THREE.EquirectangularReflectionMapping
-//     texture.needsUpdate = true
-    
-//     const pmremGenerator = new THREE.PMREMGenerator(renderer)
-//     const envMap = pmremGenerator.fromEquirectangular(texture)
-//     texture.dispose()
-//     pmremGenerator.dispose()
-    
-//     hdrEnvironment = envMap.texture
-//     scene.environment = hdrEnvironment
-    
-//     console.log('High-contrast environment map created for metallic reflections')
-// }
 
 function updateMaterialsWithEnvironment() {
     if (!hdrEnvironment) return
@@ -256,19 +282,6 @@ async function loadGLBModel(url: string) {
         GLBLoader.centerModel(model)
         GLBLoader.scaleToFit(model, 2) 
         
-        // Apply metallic materials with reflections for helmet
-        const metallicMaterials = [
-            { color: 0xd0d0d0, metalness: 0.3, roughness: 0.1 }, // Light gray, very metallic, shiny
-            { color: 0xc8c8c8, metalness: 0.8, roughness: 0.4 }, // Light-medium gray, metallic
-            { color: 0xc0c0c0, metalness: 0.85, roughness: 0.6 }, // Medium-light gray, metallic
-            { color: 0xb8b8b8, metalness: 0.4, roughness: 0.2 }, // Medium gray, less metallic
-            { color: 0xb0b0b0, metalness: 0.1, roughness: 0.08 }, // Medium gray, very reflective
-            { color: 0xe0e0e0, metalness: 1, roughness: 0.05 }, // Light gray, mirror-like
-            { color: 0xa0a0a0, metalness: 0.8, roughness: 0.15 }, // Medium-dark gray, metallic
-            { color: 0x989898, metalness: 0.6, roughness: 0.25 }, // Darker gray, less metallic
-        ]
-        GLBLoader.applyVariedMetallicMaterials(model, metallicMaterials)
-        
         if (loadedModel) {
             scene.remove(loadedModel)
         }
@@ -277,7 +290,6 @@ async function loadGLBModel(url: string) {
         loadedModel = model
         scene.add(loadedModel)
         
-        // Hide loading indicator
         const loadingElement = document.getElementById('loading')
         if (loadingElement) loadingElement.style.display = 'none'
         
@@ -293,13 +305,11 @@ async function loadGLBModel(url: string) {
 window.addEventListener('keydown', (event) => {
     switch (event.key) {
         case '1':
-            // Show cube only
             if (loadedModel) scene.remove(loadedModel)
             if (!scene.children.includes(cube.mesh)) scene.add(cube.mesh)
             console.log('Switched to cube')
             break
         case '2':
-            // Show loaded model only (if exists)
             if (loadedModel) {
                 scene.remove(cube.mesh)
                 if (!scene.children.includes(loadedModel)) scene.add(loadedModel)
@@ -309,7 +319,6 @@ window.addEventListener('keydown', (event) => {
             }
             break
         case '3':
-            // Show both
             if (!scene.children.includes(cube.mesh)) scene.add(cube.mesh)
             if (loadedModel && !scene.children.includes(loadedModel)) scene.add(loadedModel)
             console.log('Showing both models')
@@ -364,23 +373,22 @@ function applyCustomColor(options: any = {}) {
     console.log('Applied custom metallic material:', options)
 }
 
-// Function specifically for dithering - uses only 3 luminance levels
 function applyDitheringOptimized() {
     if (!loadedModel) {
         console.log('No model loaded. Load a model first.')
         return
     }
     
-    // Metallic gray tones optimized for dithering with reflections
-    const materials = [
-        { color: 0xD0D0D0, metalness: 0.9, roughness: 0.1 }, // Light gray, very reflective
-        { color: 0xC0C0C0, metalness: 0.85, roughness: 0.12 }, // Medium-light gray, metallic
-        { color: 0xB0B0B0, metalness: 0.8, roughness: 0.15 }, // Medium gray, metallic
-        { color: 0xA0A0A0, metalness: 0.75, roughness: 0.2 }, // Medium-dark gray
-        { color: 0x909090, metalness: 0.7, roughness: 0.25 }, // Darker gray
-        { color: 0xC8C8C8, metalness: 0.95, roughness: 0.08 }, // Light gray, mirror-like
-        { color: 0xB8B8B8, metalness: 0.8, roughness: 0.18 }, // Medium gray variation
-    ]
+    // const materials = [
+    //     { color: 0x2A2A2A, metalness: 0.0, roughness: 0.98 }, // Charcoal dark, completely matte
+    //     { color: 0x1F1F1F, metalness: 0.0, roughness: 1.0 },  // Very dark gray, completely matte
+    //     { color: 0x333333, metalness: 0.0, roughness: 0.95 },  // Dark gray, completely matte
+    //     { color: 0x404040, metalness: 0.0, roughness: 0.97 }, // Medium-dark gray, matte
+    //     { color: 0x1A1A1A, metalness: 0.0, roughness: 1.0 }, // Almost black, completely matte
+    //     { color: 0x262626, metalness: 0.0, roughness: 1.0 },  // Dark charcoal, completely matte
+    //     { color: 0x383838, metalness: 0.0, roughness: 0.95 }, // Dark gray variation, matte
+    // ]
+    
     
     GLBLoader.applyVariedMetallicMaterials(loadedModel, materials)
     console.log('Applied dithering-optimized materials - each part should be clearly distinguishable!')
@@ -406,6 +414,109 @@ function setRenderScale(scale: number) {
 function setDitherPointSize(size: number) {
     ditherMaterial.uniforms.pointSize.value = Math.max(0.1, Math.min(10.0, size))
     console.log(`Dither point size set to ${ditherMaterial.uniforms.pointSize.value}`)
+}
+
+// Ensure the helmet visor (if present) keeps a full-metal, glossy finish
+function applyVisorMetallicFinish(model: THREE.Group) {
+    if (!model) return
+
+    const visorKeywords = ['roundcube.001', 'roundcube', 'visor', 'visiere', 'visière', 'glass', 'shield', 'face', 'visor_geo', 'visor_mesh', 'helmet_visor', 'cube.001']
+    let applied = false
+
+    model.traverse((child: THREE.Object3D) => {
+        if (!(child instanceof THREE.Mesh)) return
+
+        const name = (child.name || '').toLowerCase()
+        if (visorKeywords.some(k => name.includes(k))) {
+            // preserve texture maps if any, but force metalness/roughness
+            const orig: any = child.material
+            const visorMat = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                metalness: 1.0, // Maximum metalness for high reflectivity
+                roughness: 0.0, // Perfectly smooth surface
+                envMap: hdrEnvironment || null,
+                envMapIntensity: 4.0 // Very strong reflections for high contrast
+            })
+
+            if (orig && orig.map) visorMat.map = orig.map
+            if (orig && orig.normalMap) visorMat.normalMap = orig.normalMap
+
+            child.material = visorMat
+            child.material.needsUpdate = true
+            applied = true
+            console.log(`Applied visor metallic finish to mesh: "${child.name || '<unnamed>'}"`)
+        }
+    })
+
+    // Fallback: if no named visor found, try to set the first front-facing mesh
+    if (!applied) {
+        let firstMesh: THREE.Mesh | null = null
+        model.traverse((child: THREE.Object3D) => {
+            if (!firstMesh && child instanceof THREE.Mesh) firstMesh = child
+        })
+        if (firstMesh) {
+            const orig: any = firstMesh.material
+            const visorMat = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                metalness: 1.0, // Maximum metalness for high reflectivity
+                roughness: 0.0, // Perfectly smooth surface
+                envMap: hdrEnvironment || null,
+                envMapIntensity: 4.0 // Very strong reflections for high contrast
+            })
+            if (orig && orig.map) visorMat.map = orig.map
+            if (orig && orig.normalMap) visorMat.normalMap = orig.normalMap
+            firstMesh.material = visorMat
+            firstMesh.material.needsUpdate = true
+            console.log('Fallback: applied visor metallic finish to first mesh:', firstMesh.name || '<unnamed>')
+        }
+    }
+}
+
+// Function to toggle dithering on/off
+function toggleDithering(enabled: boolean) {
+    ;(window as any).skipPostProcessing = !enabled
+    console.log(`Dithering ${enabled ? 'enabled' : 'disabled'}`)
+}
+
+// Function to switch between light and dark materials
+function toggleMaterialTheme(forceDark?: boolean) {
+    if (!loadedModel) {
+        console.log('No model loaded. Load a model first.')
+        return
+    }
+    
+    // Use the global isDarkTheme variable if no parameter is provided
+    const shouldBeDark = forceDark !== undefined ? forceDark : isDarkTheme
+    
+    if (shouldBeDark) {
+        // Apply dark materials with very low metalness
+        const darkMaterials = [
+            { color: 0x2A2A2A, metalness: 0.0, roughness: 0.98 }, // Charcoal dark, completely matte
+            { color: 0x1F1F1F, metalness: 0.0, roughness: 1.0 },  // Very dark gray, completely matte
+            { color: 0x333333, metalness: 0.0, roughness: 0.95 },  // Dark gray, completely matte
+            { color: 0x404040, metalness: 0.0, roughness: 0.97 }, // Medium-dark gray, matte
+            { color: 0x1A1A1A, metalness: 0.0, roughness: 1.0 }, // Almost black, completely matte
+            { color: 0x262626, metalness: 0.0, roughness: 1.0 },  // Dark charcoal, completely matte
+            { color: 0x383838, metalness: 0.0, roughness: 0.95 }, // Dark gray variation, matte
+        ]
+    GLBLoader.applyVariedMetallicMaterials(loadedModel, darkMaterials)
+    // Force visor to be metallic/glossy even in dark theme
+    applyVisorMetallicFinish(loadedModel)
+    console.log('Switched to DARK matte materials (visor forced metallic)')
+    } else {
+        // Apply light materials
+        const lightMaterials = [
+            { color: 0xD0D0D0, metalness: 0.9, roughness: 0.1 }, // Light gray, very reflective
+            { color: 0xC0C0C0, metalness: 0.85, roughness: 0.12 }, // Medium-light gray, metallic
+            { color: 0xB0B0B0, metalness: 0.8, roughness: 0.15 }, // Medium gray, metallic
+            { color: 0xA0A0A0, metalness: 0.75, roughness: 0.2 }, // Medium-dark gray
+            { color: 0x909090, metalness: 0.7, roughness: 0.25 }, // Darker gray
+            { color: 0xC8C8C8, metalness: 0.95, roughness: 0.08 }, // Light gray, mirror-like
+            { color: 0xB8B8B8, metalness: 0.8, roughness: 0.18 }, // Medium gray variation
+        ]
+        GLBLoader.applyVariedMetallicMaterials(loadedModel, lightMaterials)
+        console.log('Switched to LIGHT metallic materials')
+    }
 }
 
 // Debug function to show original colors before dithering
@@ -454,6 +565,7 @@ function fixBlackTextures() {
 ;(window as any).setDitherPointSize = setDitherPointSize
 ;(window as any).showOriginalColors = showOriginalColors
 ;(window as any).fixBlackTextures = fixBlackTextures
+;(window as any).toggleMaterialTheme = toggleMaterialTheme
 ;(window as any).skipPostProcessing = false
 
 loadGLBModel('./untitled1.glb')
@@ -516,14 +628,35 @@ renderer.outputColorSpace = THREE.SRGBColorSpace
 
 // Initialize HDR environment for metallic reflections
 loadHDREnvironment('./Tokyo-Shibuya-neon-lights.hdr', renderer)
+// loadHDREnvironment('./shanghai_bund_2k.hdr', renderer)
     .then(() => {
+        console.log('HDR environment loaded successfully')
         // Update all existing materials to use the new environment
         updateMaterialsWithEnvironment()
+        
+        // Apply default dark materials with proper HDR environment
+        if (loadedModel) {
+            setTimeout(() => {
+                toggleMaterialTheme(true) // Force dark theme with HDR
+                console.log('Applied default dark matte materials with HDR')
+            }, 200)
+        }
     })
     .catch(() => {
-        // createHighContrastEnvironment(renderer)
-        // Still update materials even with fallback environment
+        console.log('HDR failed - using colorful synthetic environment')
+        // Create colorful synthetic environment as fallback
+        hdrEnvironment = createColorfulSyntheticEnvironment(renderer)
+        scene.environment = hdrEnvironment
+        // Update materials with the new synthetic environment
         updateMaterialsWithEnvironment()
+        
+        // Apply default dark materials with synthetic environment
+        if (loadedModel) {
+            setTimeout(() => {
+                toggleMaterialTheme(true) // Force dark theme with synthetic env
+                console.log('Applied default dark matte materials with synthetic environment')
+            }, 200)
+        }
     })
 
 // Create render target with reduced resolution for performance
